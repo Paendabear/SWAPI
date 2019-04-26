@@ -1,59 +1,47 @@
 import React, { Component } from 'react';
 import './App.css';
 import Search from './Search/Search';
-import Book from './Book/Book';
+import Cards from './Card/Card';
+import SearchContext from './SearchContext';
+import API from './API';
+
 
 
 class App extends Component {
   constructor(props){
     super(props);
     this.state = {
-      books: [],
+      cards: [],
       error:null,
-      params: {
-        q: '',
-        printType: '',
-        filter: ''
-      
-    }
-    }
-  }
-
-formatQueryParams(params) {
-    const queryItems = Object.keys(params)
-      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`);
-    return queryItems.join('&');
-  }
-
-
-  handleSearch = (e) =>{
-    e.preventDefault()
-   const data = {}
-   const formData = new FormData(e.target)
-    for (let value of formData) data[value[0]] = value[1]
+      oop: false,
+      loading: false,
+      qType: 'people',
+      search: '',     
     
-   
-    
+  }
+}
+
+static contextType = SearchContext;
+  handleFormChange = (e) => {
+  
+    const {name, value} = e.target;
+
+    if(value === " " && this.state[name] ===""){
+      this.setState({error: 'Cannot begin with spaces'});
+      return 
+    }  else {
     this.setState({
-      params: data
+      [name]: value,
+      error: '',
     })
+  }
+}
 
-    const searchURL = 'https://www.googleapis.com/books/v1/volumes';
+  handleSearch = (e, data) =>{
+    e.preventDefault()
+    this.setState({loading:true})
 
-    const queryString = this.formatQueryParams(data);
-    const url = searchURL + '?' + queryString;
-
-    console.log(url);
-
-    const options = {
-      method: 'GET',
-      headers: {
-        
-        "Content-Type": "application/json"
-      }
-    };
-
-    fetch(url, options)
+    API.apiGet(data.qType,data.search)
       .then(res => {
         if(!res.ok) {
           throw new Error('Something went wrong, please try again later.');
@@ -61,68 +49,63 @@ formatQueryParams(params) {
         return res;
       })
       .then(res => res.json())
-      .then(data => {
-        if(data.totalItems === 0) throw new Error('No books found') 
+      .then(datum => {
+      
 
-        const aBooks = data.items.map( book => {
-          const {title,authors,description,imageLinks} = book.volumeInfo
-          const {saleability,retailPrice} = book.saleInfo
-          return {
-            title: title,
-            author: authors,
-            description: description,
-            thumbnail_URL: imageLinks.thumbnail,
-            saleability: saleability,
-            price: retailPrice,
-          };
-        })
+
+        const cards = API.formatResults(data.qType,datum);
         this.setState({
-          books: aBooks,
-          error: null
-        });
+          cards:cards,
+          loading:false
+      })
+      if(this.state.cards.length === 0) {
+        this.setState({oop: true});
+      }else{
+        this.setState({oop: false})
+      }
       })
       .catch(err => {
         this.setState({
           error: err.message
         });
       });
-
   }
 
 
 
   render() {
+
+    const contextValue = {
+      search: this.state.search,
+      qType: this.state.qType,
+      handleSearch : this.handleSearch,
+      handleFormChange: this.handleFormChange,
+      error: this.state.error,
+      loadState:this.state.loading,
+      cards:this.state.cards
+    }
+
     const errorMessage = this.state.error ? <div>{this.state.error}</div> : false
-
-    let lib = this.state.books
-    console.log(books);
-
-    const books = lib.map(book => { 
-      return <Book 
-                title={book.title}
-                author= {book.author}
-                description={book.description}
-                thumbnail_URL={book.thumbnail_URL}
-                saleability= {book.saleability}
-                price= {book.price}
-      />
-    });
-
-
+    const loadMessage = this.state.loading ? <div>loading</div> : false 
+    const oops = (this.state.oop) ? <div>OOPs please try another</div> : false;
     return (
 
 
+    <SearchContext.Provider value={contextValue}>
       <div className="App">
-  <header>
-    <h1>Google Book Search</h1>
-    </header> 
-  <Search handleSearch ={this.handleSearch}/>
-  {errorMessage}
-  <ul className="books-list">
-    {books}
-  </ul>
-
+        <header>
+          <h1>Star Wars Search</h1>
+        </header> 
+        <Search />
+          {errorMessage}
+          {loadMessage}
+          {oops}
+        <ul className="books-list">
+          <Cards />
+        </ul>
+  
       </div>
+    </SearchContext.Provider>
       
     );
   }
